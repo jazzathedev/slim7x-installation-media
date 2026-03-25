@@ -215,8 +215,8 @@ Step "WiFi driver for post-install"
 $WifiDriverDest = "$UsbDrive\wifi-driver.exe"
 if (-not (Test-Path $WifiDriverDest)) {
     Write-Host "  Downloading Qualcomm FastConnect 7800 WiFi driver from Dell..." -ForegroundColor Yellow
-    # Dell driver ID: 4CY9K - ARM64 Qualcomm FastConnect 7800
-    $WifiUrl = "https://dl.dell.com/FOLDER10756641M/1/Network_Driver_4CY9K_WN64_23.40.0.6_A00.EXE"
+    # Dell driver 75JHH - Qualcomm FastConnect 7800, WINARM64, v1.0.4135.200
+    $WifiUrl = "https://dl.dell.com/FOLDER12256259M/3/Qualcomm-FastConnect-7800-Wi-Fi-and-Bluetooth-Driver_75JHH_WINARM64_1.0.4135.200_A02.EXE"
     try {
         Import-Module BitsTransfer
         Start-BitsTransfer -Source $WifiUrl -Destination $WifiDriverDest
