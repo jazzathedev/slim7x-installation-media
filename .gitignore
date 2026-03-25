@@ -1,0 +1,10 @@
+# Downloaded ISOs and extracted files - too large for git
+*.iso
+*.wim
+*.swm
+bootsect.exe
+iso_mount/
+
+# Windows noise
+Thumbs.db
+desktop.ini
