@@ -194,13 +194,16 @@ if (-not (Test-Path $WimSrc)) {
 if (-not (Test-Path $WimSrc)) { Err "install.wim not found after extraction" }
 Ok "install.wim extracted"
 
-Write-Host "  Splitting with DISM..." -ForegroundColor Yellow
-if (Test-Path $SwmDest) { Remove-Item "$WorkDir\install*.swm" -Force }
-$dism = Start-Process -FilePath "dism.exe" `
-    -ArgumentList "/Split-Image /ImageFile:`"$WimSrc`" /SWMFile:`"$SwmDest`" /FileSize:4000" `
-    -Wait -PassThru -NoNewWindow
-if ($dism.ExitCode -ne 0) { Err "DISM split failed (exit $($dism.ExitCode))" }
-Ok "install.wim split into .swm files"
+if (Test-Path $SwmDest) {
+    Ok "install.swm already exists - skipping DISM split"
+} else {
+    Write-Host "  Splitting with DISM..." -ForegroundColor Yellow
+    $dism = Start-Process -FilePath "dism.exe" `
+        -ArgumentList "/Split-Image /ImageFile:`"$WimSrc`" /SWMFile:`"$SwmDest`" /FileSize:4000" `
+        -Wait -PassThru -NoNewWindow
+    if ($dism.ExitCode -ne 0) { Err "DISM split failed (exit $($dism.ExitCode))" }
+    Ok "install.wim split into .swm files"
+}
 
 # === Step 7: Copy .swm files to USB ===
 Step "Copy .swm files to USB sources folder"
