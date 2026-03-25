@@ -1,9 +1,8 @@
-# Downloaded ISOs and extracted files - too large for git
+# Large downloaded files
 *.iso
-*.wim
-*.swm
-bootsect.exe
-iso_mount/
+
+# Intermediate working files (all live in temp/)
+temp/
 
 # Windows noise
 Thumbs.db

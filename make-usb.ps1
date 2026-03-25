@@ -19,11 +19,14 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # === Config ===
-$WorkDir  = "C:\Users\jazza\Downloads\yoga"
-$IsoPath  = "$WorkDir\Win11_ARM64.iso"
+$WorkDir  = $PSScriptRoot                  # directory the script lives in
+$TempDir  = "$WorkDir\temp"                # intermediate files (wim, swm, iso_mount...)
+$IsoPath  = "$WorkDir\Win11_ARM64.iso"     # ISO stays in root alongside the script
 $SzExe    = "C:\Program Files\7-Zip\7z.exe"
 $UsbDrive = "E:"
 $UsbLabel = "WIN11ARM"
+
+New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
 
 function Confirm-Step($prompt) {
     if ($Yes) { Write-Host "  $prompt [auto-yes]" -ForegroundColor DarkGray; return $true }
@@ -175,7 +178,7 @@ if ($vol -and $vol.FileSystem -eq 'FAT32' -and -not $Wipe) {
 
 # === Step 5: Copy all ISO files EXCEPT sources\install.wim ===
 Step "Copy ISO contents to USB (excluding install.wim)"
-$MountDir = "$WorkDir\iso_mount"
+$MountDir = "$TempDir\iso_mount"
 
 # Skip extraction if already done (efi folder is a reliable sentinel)
 if (Test-Path "$MountDir\efi") {
@@ -194,12 +197,12 @@ Ok "Files copied to USB"
 
 # === Step 6: Split install.wim ===
 Step "Extract and split install.wim (4000 MB chunks)"
-$WimSrc  = "$WorkDir\install.wim"
-$SwmDest = "$WorkDir\install.swm"
+$WimSrc  = "$TempDir\install.wim"
+$SwmDest = "$TempDir\install.swm"
 
 if (-not (Test-Path $WimSrc)) {
     Write-Host "  Extracting install.wim from ISO (~4-5 GB)..." -ForegroundColor Yellow
-    & $SzExe e -y "-o$WorkDir" $IsoPath "sources\install.wim" | Out-Null
+    & $SzExe e -y "-o$TempDir" $IsoPath "sources\install.wim" | Out-Null
 }
 if (-not (Test-Path $WimSrc)) { Err "install.wim not found after extraction" }
 Ok "install.wim extracted"
@@ -217,7 +220,7 @@ if (Test-Path $SwmDest) {
 
 # === Step 7: Copy .swm files to USB ===
 Step "Copy .swm files to USB sources folder"
-$SwmFiles = Get-Item "$WorkDir\install*.swm"
+$SwmFiles = Get-Item "$TempDir\install*.swm"
 foreach ($f in $SwmFiles) {
     $dest = "$UsbDrive\sources\$($f.Name)"
     if ((Test-Path $dest) -and ((Get-Item $dest).Length -eq $f.Length)) {
