@@ -295,6 +295,48 @@ if ($addUnattend -eq "YES") {
 '@
     Set-Content -Path "$UsbDrive\autounattend.xml" -Value $unattendXml -Encoding UTF8
     Ok "autounattend.xml written to USB root"
+
+    # --- bypassnro.cmd ---
+    # Windows OOBE looks for this specific file at System32\oobe\bypassnro.cmd.
+    # If found, it runs it at the network screen - sets BypassNRO and reboots so
+    # the "I don't have internet" button appears. Root autounattend.xml alone is
+    # not reliable for this; Rufus uses this file too.
+    $oobePath = "$UsbDrive\sources\`$OEM`$\`$`$\System32\oobe"
+    New-Item -ItemType Directory -Force -Path $oobePath | Out-Null
+    Set-Content -Path "$oobePath\bypassnro.cmd" -Encoding ASCII -Value @'
+@echo off
+reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v BypassNRO /t REG_DWORD /d 1 /f
+shutdown /r /t 0
+'@
+    Ok "bypassnro.cmd written to `$OEM`$\`$`$\System32\oobe"
+
+    # --- Panther unattend.xml ---
+    # $OEM$\$$\Panther\ gets copied to C:\Windows\Panther\ during setup.
+    # This is the file actually read during OOBE for HideOnlineAccountScreens etc.
+    $pantherPath = "$UsbDrive\sources\`$OEM`$\`$`$\Panther"
+    New-Item -ItemType Directory -Force -Path $pantherPath | Out-Null
+    $pantherXml = @'
+<?xml version="1.0" encoding="utf-8"?>
+<unattend xmlns="urn:schemas-microsoft-com:unattend"
+          xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+  <settings pass="oobeSystem">
+    <component name="Microsoft-Windows-Shell-Setup"
+               processorArchitecture="arm64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral" versionScope="nonSxS">
+      <OOBE>
+        <HideEULAPage>true</HideEULAPage>
+        <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
+        <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+        <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
+        <ProtectYourPC>3</ProtectYourPC>
+      </OOBE>
+    </component>
+  </settings>
+</unattend>
+'@
+    Set-Content -Path "$pantherPath\unattend.xml" -Value $pantherXml -Encoding UTF8
+    Ok "unattend.xml written to `$OEM`$\`$`$\Panther"
 } else {
     Write-Host "  Skipped." -ForegroundColor DarkGray
 }
