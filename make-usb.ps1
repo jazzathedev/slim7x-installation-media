@@ -218,8 +218,11 @@ if (-not (Test-Path $WifiDriverDest)) {
     # Dell driver 75JHH - Qualcomm FastConnect 7800, WINARM64, v1.0.4135.200
     $WifiUrl = "https://dl.dell.com/FOLDER12256259M/3/Qualcomm-FastConnect-7800-Wi-Fi-and-Bluetooth-Driver_75JHH_WINARM64_1.0.4135.200_A02.EXE"
     try {
-        Import-Module BitsTransfer
-        Start-BitsTransfer -Source $WifiUrl -Destination $WifiDriverDest
+        $dlHeaders = @{
+            "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; ARM64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "Referer"    = "https://www.dell.com/"
+        }
+        Invoke-WebRequest -Uri $WifiUrl -OutFile $WifiDriverDest -UseBasicParsing -Headers $dlHeaders
         Ok "WiFi driver saved to USB root"
     } catch {
         Write-Host "  WiFi driver download failed ($_)" -ForegroundColor Yellow
