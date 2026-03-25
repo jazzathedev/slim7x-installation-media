@@ -10,6 +10,11 @@
     Run as Administrator (the script will self-elevate if needed).
 #>
 
+param(
+    [switch]$Yes,   # auto-accept all prompts
+    [switch]$Wipe   # force reformat even if drive is already FAT32
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
@@ -20,12 +25,18 @@ $SzExe    = "C:\Program Files\7-Zip\7z.exe"
 $UsbDrive = "E:"
 $UsbLabel = "WIN11ARM"
 
+function Confirm-Step($prompt) {
+    if ($Yes) { Write-Host "  $prompt [auto-yes]" -ForegroundColor DarkGray; return $true }
+    (Read-Host "  $prompt (YES to continue)") -eq "YES"
+}
+
 # === Self-elevate ===
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
         [Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host "Re-launching as Administrator..." -ForegroundColor Yellow
+    $flags = @(if ($Yes) {"-Yes"}; if ($Wipe) {"-Wipe"}) -join " "
     Start-Process powershell -Verb RunAs `
-        -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+        -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $flags"
     exit
 }
 
@@ -120,12 +131,11 @@ Step "Format USB drive ($UsbDrive) as FAT32"
 $UsbLetter = $UsbDrive.TrimEnd(':')
 $vol = Get-Volume -DriveLetter $UsbLetter -ErrorAction SilentlyContinue
 
-if ($vol -and $vol.FileSystem -eq 'FAT32') {
-    Ok "Already FAT32 - skipping format"
+if ($vol -and $vol.FileSystem -eq 'FAT32' -and -not $Wipe) {
+    Ok "Already FAT32 - skipping format (use -Wipe to force)"
 } else {
     Write-Host "  WARNING: This will ERASE all data on $UsbDrive" -ForegroundColor Red
-    $confirm = Read-Host "  Type YES to continue"
-    if ($confirm -ne "YES") { Write-Host "Aborted."; exit 0 }
+    if (-not (Confirm-Step "Type YES to continue")) { Write-Host "Aborted."; exit 0 }
 
     # Windows built-in tools (diskpart format, Format-Volume, format.com) all refuse
     # FAT32 on partitions > 32 GB. Solution: create a 14 GB partition - more than
@@ -242,8 +252,7 @@ if (-not (Test-Path $WifiDriverDest)) {
 Step "Unattended setup tweaks (optional)"
 Write-Host "  Add autounattend.xml to skip EULA, force local account," -ForegroundColor Yellow
 Write-Host "  bypass internet requirement, and disable telemetry?" -ForegroundColor Yellow
-$addUnattend = Read-Host "  Type YES to add it"
-if ($addUnattend -eq "YES") {
+if (Confirm-Step "Add unattend tweaks? Type YES to add") {
     # Rufus source (wue.c) confirmed approach:
     # - BypassNRO reg key in specialize pass = "I don't have internet" button in OOBE
     # - Full unattend (specialize + oobeSystem) copied to $OEM$\$$\Panther\unattend.xml
