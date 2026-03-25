@@ -206,7 +206,12 @@ Ok "install.wim split into .swm files"
 Step "Copy .swm files to USB sources folder"
 $SwmFiles = Get-Item "$WorkDir\install*.swm"
 foreach ($f in $SwmFiles) {
-    Copy-Item $f.FullName "$UsbDrive\sources\" -Force
+    $dest = "$UsbDrive\sources\$($f.Name)"
+    if ((Test-Path $dest) -and ((Get-Item $dest).Length -eq $f.Length)) {
+        Ok "$($f.Name) already on USB - skipped"
+        continue
+    }
+    Copy-Item $f.FullName $dest -Force
     Ok "Copied $($f.Name)"
 }
 
