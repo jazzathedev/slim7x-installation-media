@@ -263,40 +263,43 @@ if (Confirm-Step "Add unattend tweaks? Type YES to add") {
     #   there is no windowsPE section (Pete Batard comment, wue.c line 1299)
     # - HideOnlineAccountScreens: NOT used by Rufus, doesn't work in Win11 24H2
     # - bypassnro.cmd: NOT used by Rufus (that was a community guide / my mistake)
+    # Rufus wue.c confirmed approach (lines 258, 1302):
+    # - ONE file written only to $OEM$\$$\Panther\ (no root autounattend.xml)
+    # - specialize pass uses Microsoft-Windows-Deployment (not Shell-Setup) for RunSynchronous
+    # - oobeSystem only needs HideEULAPage + ProtectYourPC - Rufus uses nothing else
+    $pantherPath = "$UsbDrive\sources\`$OEM`$\`$`$\Panther"
+    New-Item -ItemType Directory -Force -Path $pantherPath | Out-Null
+
     $unattendXml = @'
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend"
-          xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+          xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <settings pass="specialize">
-    <component name="Microsoft-Windows-Shell-Setup"
+    <component name="Microsoft-Windows-Deployment"
                processorArchitecture="arm64"
                publicKeyToken="31bf3856ad364e35"
                language="neutral" versionScope="nonSxS">
       <RunSynchronous>
-        <!-- BypassNRO: makes "I don't have internet" appear at the OOBE network screen -->
+        <!-- "I don't have internet" button in OOBE (local account path) -->
         <RunSynchronousCommand wcm:action="add">
           <Order>1</Order>
-          <Path>reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v BypassNRO /t REG_DWORD /d 1 /f</Path>
+          <Path>reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\OOBE" /v BypassNRO /t REG_DWORD /d 1 /f</Path>
         </RunSynchronousCommand>
         <!-- Telemetry: Security only (minimum) -->
         <RunSynchronousCommand wcm:action="add">
           <Order>2</Order>
-          <Path>reg add HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection /v AllowTelemetry /t REG_DWORD /d 0 /f</Path>
+          <Path>reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection" /v AllowTelemetry /t REG_DWORD /d 0 /f</Path>
         </RunSynchronousCommand>
         <!-- Disable advertising ID -->
         <RunSynchronousCommand wcm:action="add">
           <Order>3</Order>
-          <Path>reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo /v Enabled /t REG_DWORD /d 0 /f</Path>
+          <Path>reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo" /v Enabled /t REG_DWORD /d 0 /f</Path>
         </RunSynchronousCommand>
         <!-- Disable tips / suggested content -->
         <RunSynchronousCommand wcm:action="add">
           <Order>4</Order>
-          <Path>reg add HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent /v DisableSoftLanding /t REG_DWORD /d 1 /f</Path>
-        </RunSynchronousCommand>
-        <!-- Disable Cortana -->
-        <RunSynchronousCommand wcm:action="add">
-          <Order>5</Order>
-          <Path>reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search" /v AllowCortana /t REG_DWORD /d 0 /f</Path>
+          <Path>reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent" /v DisableSoftLanding /t REG_DWORD /d 1 /f</Path>
         </RunSynchronousCommand>
       </RunSynchronous>
     </component>
@@ -308,85 +311,22 @@ if (Confirm-Step "Add unattend tweaks? Type YES to add") {
                language="neutral" versionScope="nonSxS">
       <OOBE>
         <HideEULAPage>true</HideEULAPage>
-        <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
-        <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
         <ProtectYourPC>3</ProtectYourPC>
       </OOBE>
     </component>
   </settings>
 </unattend>
 '@
-    Set-Content -Path "$UsbDrive\autounattend.xml" -Value $unattendXml -Encoding UTF8
-    Ok "autounattend.xml written to USB root"
+    Set-Content -Path "$pantherPath\unattend.xml" -Value $unattendXml -Encoding UTF8
+    Ok "unattend.xml written to sources/`$OEM`$/`$`$/Panther/"
 
-    # --- $OEM$\$$\Panther\unattend.xml ---
-    # Rufus wue.c line 1302-1304: when there is no windowsPE section, Windows Setup
-    # does NOT carry root autounattend.xml into %WINDIR%\Panther. So Rufus copies the
-    # full unattend here instead - $OEM$\$$\ gets copied into %WINDIR%\ during setup,
-    # making it available to the specialize and oobeSystem passes.
-    $pantherPath = "$UsbDrive\sources\`$OEM`$\`$`$\Panther"
-    New-Item -ItemType Directory -Force -Path $pantherPath | Out-Null
-    $pantherXml = @'
-<?xml version="1.0" encoding="utf-8"?>
-<unattend xmlns="urn:schemas-microsoft-com:unattend"
-          xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
-  <settings pass="specialize">
-    <component name="Microsoft-Windows-Shell-Setup"
-               processorArchitecture="arm64"
-               publicKeyToken="31bf3856ad364e35"
-               language="neutral" versionScope="nonSxS">
-      <RunSynchronous>
-        <RunSynchronousCommand wcm:action="add">
-          <Order>1</Order>
-          <Path>reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v BypassNRO /t REG_DWORD /d 1 /f</Path>
-        </RunSynchronousCommand>
-        <RunSynchronousCommand wcm:action="add">
-          <Order>2</Order>
-          <Path>reg add HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection /v AllowTelemetry /t REG_DWORD /d 0 /f</Path>
-        </RunSynchronousCommand>
-        <RunSynchronousCommand wcm:action="add">
-          <Order>3</Order>
-          <Path>reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo /v Enabled /t REG_DWORD /d 0 /f</Path>
-        </RunSynchronousCommand>
-        <RunSynchronousCommand wcm:action="add">
-          <Order>4</Order>
-          <Path>reg add HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent /v DisableSoftLanding /t REG_DWORD /d 1 /f</Path>
-        </RunSynchronousCommand>
-        <RunSynchronousCommand wcm:action="add">
-          <Order>5</Order>
-          <Path>reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search" /v AllowCortana /t REG_DWORD /d 0 /f</Path>
-        </RunSynchronousCommand>
-      </RunSynchronous>
-    </component>
-  </settings>
-  <settings pass="oobeSystem">
-    <component name="Microsoft-Windows-Shell-Setup"
-               processorArchitecture="arm64"
-               publicKeyToken="31bf3856ad364e35"
-               language="neutral" versionScope="nonSxS">
-      <OOBE>
-        <HideEULAPage>true</HideEULAPage>
-        <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
-        <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
-        <ProtectYourPC>3</ProtectYourPC>
-      </OOBE>
-    </component>
-  </settings>
-</unattend>
-'@
-    Set-Content -Path "$pantherPath\unattend.xml" -Value $pantherXml -Encoding UTF8
-    Ok "unattend.xml written to `$OEM`$\`$`$\Panther (this is what OOBE actually reads)"
-
-    # Remove the old incorrect bypassnro.cmd if it exists from a previous run
-    $oldBypassnro = "$UsbDrive\sources\`$OEM`$\`$`$\System32\oobe\bypassnro.cmd"
-    if (Test-Path $oldBypassnro) {
-        Remove-Item $oldBypassnro -Force
-        Ok "Removed incorrect bypassnro.cmd from previous run"
+    # Remove stale root autounattend.xml if a previous run wrote one - Rufus confirms
+    # that without a windowsPE section, Windows Setup does not carry the root file to
+    # Panther, so it would only cause duplicate/conflicting specialize pass processing.
+    if (Test-Path "$UsbDrive\autounattend.xml") {
+        Remove-Item "$UsbDrive\autounattend.xml" -Force
+        Ok "Removed stale root autounattend.xml"
     }
-
-    # Stub root autounattend.xml left in place - harmless, may help if Windows
-    # does pick it up for specialize on some firmware/setup versions
-    $pantherXml = $null  # free the var (content already written above)
 } else {
     Write-Host "  Skipped." -ForegroundColor DarkGray
 }
