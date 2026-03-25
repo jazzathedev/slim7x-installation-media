@@ -236,6 +236,13 @@ Write-Host "  Add autounattend.xml to skip EULA, force local account," -Foregrou
 Write-Host "  bypass internet requirement, and disable telemetry?" -ForegroundColor Yellow
 $addUnattend = Read-Host "  Type YES to add it"
 if ($addUnattend -eq "YES") {
+    # Rufus source (wue.c) confirmed approach:
+    # - BypassNRO reg key in specialize pass = "I don't have internet" button in OOBE
+    # - Full unattend (specialize + oobeSystem) copied to $OEM$\$$\Panther\unattend.xml
+    #   because Windows Setup does NOT carry root autounattend.xml to Panther when
+    #   there is no windowsPE section (Pete Batard comment, wue.c line 1299)
+    # - HideOnlineAccountScreens: NOT used by Rufus, doesn't work in Win11 24H2
+    # - bypassnro.cmd: NOT used by Rufus (that was a community guide / my mistake)
     $unattendXml = @'
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend"
@@ -246,7 +253,7 @@ if ($addUnattend -eq "YES") {
                publicKeyToken="31bf3856ad364e35"
                language="neutral" versionScope="nonSxS">
       <RunSynchronous>
-        <!-- "I don't have internet" button in OOBE -->
+        <!-- BypassNRO: makes "I don't have internet" appear at the OOBE network screen -->
         <RunSynchronousCommand wcm:action="add">
           <Order>1</Order>
           <Path>reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v BypassNRO /t REG_DWORD /d 1 /f</Path>
@@ -282,11 +289,7 @@ if ($addUnattend -eq "YES") {
       <OOBE>
         <HideEULAPage>true</HideEULAPage>
         <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
-        <!-- Force local account path (Pro only) -->
-        <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
-        <!-- Skip wifi screen - no driver installed yet -->
         <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
-        <!-- Don't auto-enable recommended privacy settings -->
         <ProtectYourPC>3</ProtectYourPC>
       </OOBE>
     </component>
@@ -296,29 +299,46 @@ if ($addUnattend -eq "YES") {
     Set-Content -Path "$UsbDrive\autounattend.xml" -Value $unattendXml -Encoding UTF8
     Ok "autounattend.xml written to USB root"
 
-    # --- bypassnro.cmd ---
-    # Windows OOBE looks for this specific file at System32\oobe\bypassnro.cmd.
-    # If found, it runs it at the network screen - sets BypassNRO and reboots so
-    # the "I don't have internet" button appears. Root autounattend.xml alone is
-    # not reliable for this; Rufus uses this file too.
-    $oobePath = "$UsbDrive\sources\`$OEM`$\`$`$\System32\oobe"
-    New-Item -ItemType Directory -Force -Path $oobePath | Out-Null
-    Set-Content -Path "$oobePath\bypassnro.cmd" -Encoding ASCII -Value @'
-@echo off
-reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v BypassNRO /t REG_DWORD /d 1 /f
-shutdown /r /t 0
-'@
-    Ok "bypassnro.cmd written to `$OEM`$\`$`$\System32\oobe"
-
-    # --- Panther unattend.xml ---
-    # $OEM$\$$\Panther\ gets copied to C:\Windows\Panther\ during setup.
-    # This is the file actually read during OOBE for HideOnlineAccountScreens etc.
+    # --- $OEM$\$$\Panther\unattend.xml ---
+    # Rufus wue.c line 1302-1304: when there is no windowsPE section, Windows Setup
+    # does NOT carry root autounattend.xml into %WINDIR%\Panther. So Rufus copies the
+    # full unattend here instead - $OEM$\$$\ gets copied into %WINDIR%\ during setup,
+    # making it available to the specialize and oobeSystem passes.
     $pantherPath = "$UsbDrive\sources\`$OEM`$\`$`$\Panther"
     New-Item -ItemType Directory -Force -Path $pantherPath | Out-Null
     $pantherXml = @'
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend"
           xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+  <settings pass="specialize">
+    <component name="Microsoft-Windows-Shell-Setup"
+               processorArchitecture="arm64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral" versionScope="nonSxS">
+      <RunSynchronous>
+        <RunSynchronousCommand wcm:action="add">
+          <Order>1</Order>
+          <Path>reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v BypassNRO /t REG_DWORD /d 1 /f</Path>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Order>2</Order>
+          <Path>reg add HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection /v AllowTelemetry /t REG_DWORD /d 0 /f</Path>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Order>3</Order>
+          <Path>reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo /v Enabled /t REG_DWORD /d 0 /f</Path>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Order>4</Order>
+          <Path>reg add HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent /v DisableSoftLanding /t REG_DWORD /d 1 /f</Path>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Order>5</Order>
+          <Path>reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search" /v AllowCortana /t REG_DWORD /d 0 /f</Path>
+        </RunSynchronousCommand>
+      </RunSynchronous>
+    </component>
+  </settings>
   <settings pass="oobeSystem">
     <component name="Microsoft-Windows-Shell-Setup"
                processorArchitecture="arm64"
@@ -327,7 +347,6 @@ shutdown /r /t 0
       <OOBE>
         <HideEULAPage>true</HideEULAPage>
         <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
-        <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
         <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
         <ProtectYourPC>3</ProtectYourPC>
       </OOBE>
@@ -336,7 +355,18 @@ shutdown /r /t 0
 </unattend>
 '@
     Set-Content -Path "$pantherPath\unattend.xml" -Value $pantherXml -Encoding UTF8
-    Ok "unattend.xml written to `$OEM`$\`$`$\Panther"
+    Ok "unattend.xml written to `$OEM`$\`$`$\Panther (this is what OOBE actually reads)"
+
+    # Remove the old incorrect bypassnro.cmd if it exists from a previous run
+    $oldBypassnro = "$UsbDrive\sources\`$OEM`$\`$`$\System32\oobe\bypassnro.cmd"
+    if (Test-Path $oldBypassnro) {
+        Remove-Item $oldBypassnro -Force
+        Ok "Removed incorrect bypassnro.cmd from previous run"
+    }
+
+    # Stub root autounattend.xml left in place - harmless, may help if Windows
+    # does pick it up for specialize on some firmware/setup versions
+    $pantherXml = $null  # free the var (content already written above)
 } else {
     Write-Host "  Skipped." -ForegroundColor DarkGray
 }
