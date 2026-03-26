@@ -335,8 +335,10 @@ if (Confirm-Step "Add unattend tweaks? Type YES to add") {
 Step "Desktop tool launchers (optional)"
 Write-Host "  Add MAS (activation) and Win11 debloat launchers to the desktop?" -ForegroundColor Yellow
 if (Confirm-Step "Add desktop launchers? Type YES to add") {
-    # $OEM$\$$\Users\Default\Desktop\ gets copied into every new user profile's desktop
-    $DesktopOem = "$UsbDrive\sources\`$OEM`$\`$`$\Users\Default\Desktop"
+    # $OEM$\$$\ maps to C:\Windows\ - wrong for user profiles.
+    # $OEM$\$1\  maps to C:\ (system drive root), so $1\Users\Public\Desktop\
+    # goes to C:\Users\Public\Desktop\ which appears for ALL user accounts.
+    $DesktopOem = "$UsbDrive\sources\`$OEM`$\`$1\Users\Public\Desktop"
     New-Item -ItemType Directory -Force -Path $DesktopOem | Out-Null
 
     Set-Content -Path "$DesktopOem\Activate Windows (MAS).bat" -Encoding ASCII -Value @'
