@@ -355,6 +355,14 @@ powershell -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm 'http
 pause
 '@
 
+    $wifiSrc = "$UsbDrive\wifi-driver.exe"
+    if (Test-Path $wifiSrc) {
+        Copy-Item $wifiSrc "$DesktopOem\wifi-driver.exe" -Force
+        Ok "WiFi driver also copied to desktop"
+    } else {
+        Write-Host "  WiFi driver not on USB root yet - run step 8 first if needed" -ForegroundColor Yellow
+    }
+
     Ok "Launchers written - will appear on desktop after first login"
 } else {
     Write-Host "  Skipped." -ForegroundColor DarkGray
