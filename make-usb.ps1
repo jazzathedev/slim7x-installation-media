@@ -332,26 +332,31 @@ if (Confirm-Step "Add unattend tweaks? Type YES to add") {
 }
 
 # === Step 10: Desktop tools (MAS + debloat launchers) ===
-Step "Desktop tool launchers"
-# $OEM$\$$\Users\Default\Desktop\ gets copied into every new user profile's desktop
-$DesktopOem = "$UsbDrive\sources\`$OEM`$\`$`$\Users\Default\Desktop"
-New-Item -ItemType Directory -Force -Path $DesktopOem | Out-Null
+Step "Desktop tool launchers (optional)"
+Write-Host "  Add MAS (activation) and Win11 debloat launchers to the desktop?" -ForegroundColor Yellow
+if (Confirm-Step "Add desktop launchers? Type YES to add") {
+    # $OEM$\$$\Users\Default\Desktop\ gets copied into every new user profile's desktop
+    $DesktopOem = "$UsbDrive\sources\`$OEM`$\`$`$\Users\Default\Desktop"
+    New-Item -ItemType Directory -Force -Path $DesktopOem | Out-Null
 
-Set-Content -Path "$DesktopOem\Activate Windows (MAS).bat" -Encoding ASCII -Value @'
+    Set-Content -Path "$DesktopOem\Activate Windows (MAS).bat" -Encoding ASCII -Value @'
 @echo off
 echo Running Microsoft Activation Scripts...
 powershell -ExecutionPolicy Bypass -Command "irm https://get.activated.win | iex"
 pause
 '@
 
-Set-Content -Path "$DesktopOem\Debloat Windows 11.bat" -Encoding ASCII -Value @'
+    Set-Content -Path "$DesktopOem\Debloat Windows 11.bat" -Encoding ASCII -Value @'
 @echo off
 echo Running Win11 debloat (raphi.re)...
 powershell -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm 'https://debloat.raphi.re/')))"
 pause
 '@
 
-Ok "Launchers written - will appear on desktop after first login"
+    Ok "Launchers written - will appear on desktop after first login"
+} else {
+    Write-Host "  Skipped." -ForegroundColor DarkGray
+}
 
 # === Done ===
 Write-Host "`n========================================" -ForegroundColor Green
