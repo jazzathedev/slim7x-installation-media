@@ -11,8 +11,9 @@
 #>
 
 param(
-    [switch]$Yes,   # auto-accept all prompts
-    [switch]$Wipe   # force reformat even if drive is already FAT32
+    [string]$UsbDrive = "E:",  # drive letter of the USB stick (e.g. -UsbDrive F:)
+    [switch]$Yes,              # auto-accept all prompts
+    [switch]$Wipe              # force reformat even if drive is already FAT32
 )
 
 Set-StrictMode -Version Latest
@@ -22,9 +23,18 @@ $ErrorActionPreference = "Stop"
 $WorkDir  = $PSScriptRoot                  # directory the script lives in
 $TempDir  = "$WorkDir\temp"                # intermediate files (wim, swm, iso_mount...)
 $IsoPath  = "$WorkDir\Win11_ARM64.iso"     # ISO stays in root alongside the script
-$SzExe    = "C:\Program Files\7-Zip\7z.exe"
-$UsbDrive = "E:"
 $UsbLabel = "WIN11ARM"
+
+# Auto-detect 7-Zip
+$SzExe = @(
+    "C:\Program Files\7-Zip\7z.exe",
+    "C:\Program Files (x86)\7-Zip\7z.exe",
+    (Get-Command "7z.exe" -ErrorAction SilentlyContinue)?.Source
+) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+if (-not $SzExe) {
+    Write-Host "7-Zip not found. Install it from https://www.7-zip.org/ then re-run." -ForegroundColor Red
+    exit 1
+}
 
 New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
 
@@ -176,7 +186,7 @@ if ($vol -and $vol.FileSystem -eq 'FAT32' -and -not $Wipe) {
 # Partition is already marked active by the format step above (UEFI boots from
 # EFI\BOOT\BOOTAA64.EFI on the FAT32 partition - no bootsect needed)
 
-# === Step 5: Copy all ISO files EXCEPT sources\install.wim ===
+# === Step 3: Copy all ISO files EXCEPT sources\install.wim ===
 Step "Copy ISO contents to USB (excluding install.wim)"
 $MountDir = "$TempDir\iso_mount"
 
@@ -195,7 +205,7 @@ Write-Host "  Copying to USB..." -ForegroundColor Yellow
 robocopy $MountDir "$UsbDrive\" /E /NFL /NDL /NJH /NJS | Out-Null
 Ok "Files copied to USB"
 
-# === Step 6: Split install.wim ===
+# === Step 4: Split install.wim ===
 Step "Extract and split install.wim (4000 MB chunks)"
 $WimSrc  = "$TempDir\install.wim"
 $SwmDest = "$TempDir\install.swm"
@@ -218,7 +228,7 @@ if (Test-Path $SwmDest) {
     Ok "install.wim split into .swm files"
 }
 
-# === Step 7: Copy .swm files to USB ===
+# === Step 5: Copy .swm files to USB ===
 Step "Copy .swm files to USB sources folder"
 $SwmFiles = Get-Item "$TempDir\install*.swm"
 foreach ($f in $SwmFiles) {
@@ -231,7 +241,7 @@ foreach ($f in $SwmFiles) {
     Ok "Copied $($f.Name)"
 }
 
-# === Step 8: Download WiFi driver (Qualcomm FastConnect 7800 ARM64) ===
+# === Step 6: Download WiFi driver (Qualcomm FastConnect 7800 ARM64) ===
 Step "WiFi driver for post-install"
 $WifiDriverDest = "$UsbDrive\wifi-driver.exe"
 if (-not (Test-Path $WifiDriverDest)) {
@@ -251,7 +261,7 @@ if (-not (Test-Path $WifiDriverDest)) {
     }
 }
 
-# === Step 9: Rufus-style autounattend.xml (optional) ===
+# === Step 7: Rufus-style autounattend.xml (optional) ===
 Step "Unattended setup tweaks (optional)"
 Write-Host "  Add autounattend.xml to skip EULA, force local account," -ForegroundColor Yellow
 Write-Host "  bypass internet requirement, and disable telemetry?" -ForegroundColor Yellow
@@ -331,7 +341,7 @@ if (Confirm-Step "Add unattend tweaks? Type YES to add") {
     Write-Host "  Skipped." -ForegroundColor DarkGray
 }
 
-# === Step 10: Desktop tools (MAS + debloat launchers) ===
+# === Step 8: Desktop tools (MAS + debloat launchers) ===
 Step "Desktop tool launchers (optional)"
 Write-Host "  Add MAS (activation) and Win11 debloat launchers to the desktop?" -ForegroundColor Yellow
 if (Confirm-Step "Add desktop launchers? Type YES to add") {
